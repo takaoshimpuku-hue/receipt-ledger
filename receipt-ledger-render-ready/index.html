@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>支出伝票整理</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="vendor/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Receipt Review</p>
+        <h1>支出伝票整理</h1>
+      </div>
+      <div class="header-actions">
+        <label class="month-picker">
+          <span>対象月</span>
+          <input id="targetMonth" type="month" />
+        </label>
+        <button id="addFixedBtn" class="primary">固定費を追加</button>
+      </div>
+    </header>
+
+    <main>
+      <nav class="view-tabs" aria-label="画面切替">
+        <button class="tab-button active" data-view="reviewView">レシート確認</button>
+        <button class="tab-button" data-view="monthlyView">月別一覧</button>
+        <button class="tab-button" data-view="salesView">売上・原価率</button>
+        <button class="tab-button" data-view="settingsView">設定</button>
+      </nav>
+
+      <section class="workspace">
+        <aside class="side-panel">
+          <div class="drop-zone" id="dropZone">
+            <input id="receiptInput" type="file" accept="image/*" capture="environment" multiple />
+            <div class="drop-copy">
+              <strong>レシート写真を追加</strong>
+              <span>写真は保存せず、取込番号と元ファイル名を残します</span>
+            </div>
+          </div>
+
+          <section class="form-panel">
+            <h2>取込設定</h2>
+            <label>
+              レシート部門
+              <select id="receiptDept"></select>
+            </label>
+          </section>
+
+          <section class="form-panel">
+            <details>
+              <summary>手入力で追加</summary>
+              <label>
+                部門
+                <select id="manualDept"></select>
+              </label>
+              <label>
+                項目
+                <select id="manualCategory"></select>
+              </label>
+              <label>
+                日付
+                <input id="manualDate" type="date" />
+              </label>
+              <label>
+                内容
+                <input id="manualVendor" type="text" placeholder="例: スーパー、電車代" />
+              </label>
+              <label>
+                金額
+                <input id="manualAmount" type="number" min="0" step="1" placeholder="0" />
+              </label>
+              <button id="addManualBtn">取込番号を作成</button>
+            </details>
+          </section>
+        </aside>
+
+        <section class="content-panel view active" id="reviewView">
+          <div class="toolbar">
+            <div>
+              <h2>レシート確認</h2>
+              <p class="status" id="status">準備できました</p>
+            </div>
+            <div class="toolbar-actions">
+              <button class="filter-button active" data-filter="all">すべて</button>
+              <button class="filter-button" data-filter="needs">要確認</button>
+              <button class="filter-button" data-filter="unclassified">未分類</button>
+              <button class="filter-button" data-filter="done">処理済み</button>
+            </div>
+          </div>
+          <div class="summary-grid" id="summaryGrid"></div>
+          <div class="receipt-list" id="receiptList"></div>
+        </section>
+
+        <section class="content-panel view" id="monthlyView">
+          <div class="toolbar">
+            <div>
+              <h2>月別一覧</h2>
+              <p class="status">部門別合計を最上段に表示します。</p>
+            </div>
+            <button id="exportBtn" class="primary">Excel出力</button>
+          </div>
+          <div class="summary-grid" id="monthlySummaryGrid"></div>
+          <div class="split-grid">
+            <section>
+              <h2>項目別合計</h2>
+              <div class="table-wrap compact">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>項目</th>
+                      <th>ニュースクール</th>
+                      <th>オンタップ</th>
+                      <th>新福</th>
+                      <th>合計</th>
+                    </tr>
+                  </thead>
+                  <tbody id="categorySummaryBody"></tbody>
+                </table>
+              </div>
+            </section>
+            <section>
+              <h2>取込件数</h2>
+              <div class="table-wrap compact">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>月</th>
+                      <th>ニュースクール</th>
+                      <th>オンタップ</th>
+                      <th>合計</th>
+                    </tr>
+                  </thead>
+                  <tbody id="receiptCountBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="content-panel view" id="salesView">
+          <div class="toolbar">
+            <div>
+              <h2>ニュースクール 売上・原価率</h2>
+              <p class="status">夜とパーティーの売上、食品・飲料・ビールの原価率を確認します。</p>
+            </div>
+            <button id="saveSalesBtn" class="primary">売上を保存</button>
+          </div>
+          <div class="sales-grid">
+            <label>
+              夜
+              <input id="salesNight" type="number" min="0" step="1" />
+            </label>
+            <label>
+              パーティー
+              <input id="salesParty" type="number" min="0" step="1" />
+            </label>
+          </div>
+          <div class="summary-grid" id="salesSummaryGrid"></div>
+        </section>
+
+        <section class="content-panel view" id="settingsView">
+          <div class="toolbar">
+            <div>
+              <h2>設定</h2>
+              <p class="status">共有URL、項目、固定費をあとから変更できます。</p>
+            </div>
+            <button id="saveFixedBtn" class="primary">固定費を保存</button>
+          </div>
+
+          <section class="share-panel">
+            <h2>共有URL</h2>
+            <p class="status" id="syncStatus">この端末に保存中</p>
+            <div class="inline-form">
+              <input id="shareUrlInput" type="text" readonly placeholder="共有URLを作成するとここに表示されます" />
+              <button id="createShareBtn">共有URLを作成</button>
+              <button id="copyShareBtn">コピー</button>
+            </div>
+          </section>
+
+          <div class="split-grid">
+            <section>
+              <h2>項目</h2>
+              <div class="inline-form">
+                <input id="newCategoryInput" type="text" placeholder="追加する項目名" />
+                <button id="addCategoryBtn">追加</button>
+              </div>
+              <div class="category-list" id="categoryList"></div>
+            </section>
+
+            <section>
+              <h2>固定費</h2>
+              <div class="table-wrap compact">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>部門</th>
+                      <th>項目</th>
+                      <th>金額</th>
+                    </tr>
+                  </thead>
+                  <tbody id="fixedSettingsBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <section class="danger-zone">
+            <h2>管理</h2>
+            <button id="clearBtn" class="danger">全データを消去</button>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <template id="receiptTemplate">
+      <article class="receipt-card">
+        <div class="receipt-head">
+          <div>
+            <div class="receipt-title"></div>
+            <div class="receipt-meta"></div>
+          </div>
+          <div class="receipt-badges"></div>
+        </div>
+        <div class="receipt-fields">
+          <label>
+            日付
+            <input data-receipt-field="date" type="date" />
+          </label>
+          <label>
+            部門
+            <select data-receipt-field="department"></select>
+          </label>
+          <label>
+            店名・内容
+            <input data-receipt-field="storeName" type="text" />
+          </label>
+          <label>
+            レシート合計
+            <input data-receipt-field="expectedTotal" type="number" min="0" step="1" />
+          </label>
+        </div>
+        <div class="line-list"></div>
+        <div class="receipt-actions">
+          <button data-action="add-line">明細を追加</button>
+          <button data-action="mark-done" class="primary">処理済みにする</button>
+          <button data-action="unlock">ロック解除</button>
+          <button data-action="delete-receipt" class="danger">削除</button>
+        </div>
+      </article>
+    </template>
+
+    <template id="lineTemplate">
+      <div class="line-row">
+        <label>
+          項目
+          <select data-line-field="category"></select>
+        </label>
+        <label>
+          内容
+          <input data-line-field="itemName" type="text" />
+        </label>
+        <label>
+          金額
+          <input data-line-field="amount" type="number" min="0" step="1" />
+        </label>
+        <label>
+          状態
+          <select data-line-field="status"></select>
+        </label>
+        <label>
+          メモ
+          <input data-line-field="memo" type="text" />
+        </label>
+        <button data-action="delete-line" class="danger">削除</button>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
