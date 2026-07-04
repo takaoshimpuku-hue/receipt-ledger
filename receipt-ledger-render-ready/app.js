@@ -67,6 +67,7 @@ let syncing = false;
 const els = {
   targetMonth: document.querySelector("#targetMonth"),
   receiptInput: document.querySelector("#receiptInput"),
+  cameraInput: document.querySelector("#cameraInput"),
   dropZone: document.querySelector("#dropZone"),
   receiptDept: document.querySelector("#receiptDept"),
   manualDept: document.querySelector("#manualDept"),
@@ -129,6 +130,7 @@ function bindEvents() {
   });
   els.targetMonth.addEventListener("change", render);
   els.receiptInput.addEventListener("change", (event) => handleFiles(event.target.files));
+  els.cameraInput.addEventListener("change", (event) => handleFiles(event.target.files));
   els.dropZone.addEventListener("dragover", (event) => {
     event.preventDefault();
     els.dropZone.classList.add("dragging");
@@ -151,8 +153,11 @@ function bindEvents() {
 }
 
 async function handleFiles(fileList) {
-  const files = [...fileList].filter((file) => file.type.startsWith("image/"));
-  if (!files.length) return;
+  const files = [...fileList].filter(isImageFile);
+  if (!files.length) {
+    setStatus("写真を読み込めませんでした。JPG、PNG、HEICの写真を選んでください。");
+    return;
+  }
 
   for (const [index, file] of files.entries()) {
     setStatus(`OCR処理中 ${index + 1}/${files.length}: ${file.name}`);
@@ -167,10 +172,14 @@ async function handleFiles(fileList) {
 
   setStatus(`${files.length}件の写真を取込番号つきで追加しました`);
   els.receiptInput.value = "";
+  els.cameraInput.value = "";
 }
 
 async function readReceipt(file) {
-  if (!window.Tesseract) return "";
+  if (!window.Tesseract) {
+    setStatus("写真は追加しました。文字読み取り機能の読み込みに失敗したため、金額を確認して入力してください。");
+    return "";
+  }
   try {
     const result = await Tesseract.recognize(file, "jpn+eng", {
       logger: (message) => {
@@ -184,6 +193,11 @@ async function readReceipt(file) {
     console.error(error);
     return "";
   }
+}
+
+function isImageFile(file) {
+  if (file.type && file.type.startsWith("image/")) return true;
+  return /\.(jpg|jpeg|png|webp|gif|bmp|heic|heif)$/i.test(file.name || "");
 }
 
 function createReceiptFromText(text, fileName, department) {

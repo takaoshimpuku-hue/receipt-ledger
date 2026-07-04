@@ -34,10 +34,15 @@
       <section class="workspace">
         <aside class="side-panel">
           <div class="drop-zone" id="dropZone">
-            <input id="receiptInput" type="file" accept="image/*" capture="environment" multiple />
+            <input id="receiptInput" class="file-input" type="file" accept="image/*,.heic,.heif" multiple />
+            <input id="cameraInput" class="file-input" type="file" accept="image/*,.heic,.heif" capture="environment" multiple />
             <div class="drop-copy">
               <strong>レシート写真を追加</strong>
               <span>写真は保存せず、取込番号と元ファイル名を残します</span>
+              <div class="photo-actions">
+                <label class="upload-button primary" for="receiptInput">写真ライブラリから選ぶ</label>
+                <label class="upload-button" for="cameraInput">カメラで撮る</label>
+              </div>
             </div>
           </div>
 
