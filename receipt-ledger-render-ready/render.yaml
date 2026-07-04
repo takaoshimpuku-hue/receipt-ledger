@@ -2,14 +2,12 @@ services:
   - type: web
     name: receipt-ledger
     env: node
-    plan: starter
+    plan: free
     buildCommand: ""
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
-      - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: receipt-ledger-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

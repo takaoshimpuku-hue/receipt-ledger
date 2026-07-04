@@ -6,6 +6,10 @@ const crypto = require("crypto");
 const root = __dirname;
 const dataDir = process.env.DATA_DIR || path.join(root, "data");
 const port = Number(process.env.PORT || 4174);
+const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "";
+const supabaseTable = process.env.SUPABASE_TABLE || "receipt_shares";
+const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -46,7 +50,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`支出伝票整理: http://127.0.0.1:${port}/`);
-  console.log(`共有データ保存先: ${dataDir}`);
+  console.log(`共有データ保存先: ${useSupabase ? `Supabase:${supabaseTable}` : dataDir}`);
 });
 
 async function handleState(req, res, url) {
@@ -57,6 +61,11 @@ async function handleState(req, res, url) {
   }
   const file = path.join(dataDir, `${token}.json`);
   if (req.method === "GET") {
+    if (useSupabase) {
+      const record = await readSupabaseShare(token);
+      writeJson(res, record || { data: null, updatedAt: null });
+      return;
+    }
     if (!fs.existsSync(file)) {
       writeJson(res, { data: null, updatedAt: null });
       return;
@@ -67,11 +76,53 @@ async function handleState(req, res, url) {
   if (req.method === "PUT") {
     const body = await readBody(req);
     const parsed = JSON.parse(body || "{}");
+    if (useSupabase) {
+      await writeSupabaseShare(token, parsed.data);
+      writeJson(res, { ok: true });
+      return;
+    }
     fs.writeFileSync(file, JSON.stringify({ data: parsed.data, updatedAt: new Date().toISOString() }, null, 2));
     writeJson(res, { ok: true });
     return;
   }
   writeJson(res, { error: "method_not_allowed" }, 405);
+}
+
+async function readSupabaseShare(token) {
+  const response = await supabaseFetch(`/${supabaseTable}?token=eq.${encodeURIComponent(token)}&select=payload,updated_at&limit=1`);
+  if (!response.ok) {
+    throw new Error(`supabase_read_failed:${response.status}`);
+  }
+  const rows = await response.json();
+  if (!Array.isArray(rows) || !rows[0]) return null;
+  return { data: rows[0].payload || null, updatedAt: rows[0].updated_at || null };
+}
+
+async function writeSupabaseShare(token, data) {
+  const response = await supabaseFetch(`/${supabaseTable}`, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({
+      token,
+      payload: data || null,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`supabase_write_failed:${response.status}`);
+  }
+}
+
+function supabaseFetch(pathname, options = {}) {
+  return fetch(`${supabaseUrl}/rest/v1${pathname}`, {
+    ...options,
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
 }
 
 function serveStatic(req, res, url) {

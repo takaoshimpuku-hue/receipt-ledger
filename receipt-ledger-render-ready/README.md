@@ -14,9 +14,9 @@ npm start
 http://127.0.0.1:4174/
 ```
 
-## クラウド公開
+## 無料のクラウド公開
 
-RenderなどのNode.js Webサービスに公開できます。
+Render FreeなどのNode.js Webサービスに公開できます。
 
 起動コマンド:
 
@@ -24,10 +24,33 @@ RenderなどのNode.js Webサービスに公開できます。
 npm start
 ```
 
-永続保存用の環境変数:
+無料でデータを残す場合は、Supabase Freeのデータベースを保存先にします。
+
+SupabaseのSQL Editorで最初に1回だけ実行:
+
+```sql
+create table if not exists public.receipt_shares (
+  token text primary key,
+  payload jsonb,
+  updated_at timestamptz not null default now()
+);
+```
+
+RenderのEnvironment Variablesに入れる値:
+
+```text
+SUPABASE_URL=SupabaseのProject URL
+SUPABASE_SERVICE_ROLE_KEY=Supabaseのservice_role secret key
+```
+
+共有URLは `?share=...` を含むURLです。このURLを知っている人は同じデータを開けます。
+
+## 有料Diskを使う場合
+
+Renderの有料プランでPersistent Diskを使う場合は、Environment Variablesに以下を入れます。
 
 ```text
 DATA_DIR=/var/data
 ```
 
-共有URLは `?share=...` を含むURLです。このURLを知っている人は同じデータを開けます。
+DiskのMount Pathも `/var/data` にします。
